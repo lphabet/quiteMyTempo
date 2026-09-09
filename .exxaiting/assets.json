@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "selected_resources": [],
+  "target_platforms": [
+    "claude",
+    "github",
+    "opencode"
+  ]
+}

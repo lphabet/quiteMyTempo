@@ -1,0 +1,11 @@
+activated:
+- litellm
+litellm:
+  provider_id: litellm
+  endpoint: https://ai.exxeta.info
+  model: claude-sonnet-5
+  enabled_clients:
+  - claude
+  - codex
+  - copilot
+  - opencode
