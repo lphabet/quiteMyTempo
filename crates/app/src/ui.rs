@@ -694,10 +694,7 @@ fn draw_result_distribution(frame: &mut Frame, area: Rect, state: &UiState) {
         .constraints([Constraint::Length(1), Constraint::Length(1)])
         .split(inner);
     frame.render_widget(Paragraph::new(bar), rows[0]);
-    frame.render_widget(
-        Paragraph::new(legend).alignment(Alignment::Center),
-        rows[1],
-    );
+    frame.render_widget(Paragraph::new(legend).alignment(Alignment::Center), rows[1]);
 }
 
 fn draw_result_gauges(frame: &mut Frame, area: Rect, state: &UiState) {

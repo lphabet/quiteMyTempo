@@ -134,14 +134,18 @@ fn run_round(
             }
             Ok(KeyboardSignal::Tap(_)) => {} // already tapped this round, ignore extras
             Ok(KeyboardSignal::Quit) => return Ok(RoundOutcome::Aborted),
+            Ok(
+                KeyboardSignal::Up
+                | KeyboardSignal::Down
+                | KeyboardSignal::Select
+                | KeyboardSignal::BackToMenu,
+            ) => {} // no menu-navigation meaning during calibration
             Err(std::sync::mpsc::TryRecvError::Empty) => {}
             Err(std::sync::mpsc::TryRecvError::Disconnected) => return Ok(RoundOutcome::Aborted),
         }
 
         let tapped_deviation_ms = tapped.map(|(d, _)| d);
-        term.draw(|frame| {
-            draw_converge_scene(frame, elapsed, round_index, tapped_deviation_ms)
-        })?;
+        term.draw(|frame| draw_converge_scene(frame, elapsed, round_index, tapped_deviation_ms))?;
 
         // End the round once the result flash has had time to display
         // after a tap, or if the bars have long since met without a tap
@@ -174,7 +178,7 @@ fn draw_converge_scene(
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(3), // header
-            Constraint::Min(5),   // converge scene
+            Constraint::Min(5),    // converge scene
             Constraint::Length(1), // help
         ])
         .split(area);
@@ -202,7 +206,12 @@ fn draw_calibration_header(frame: &mut ratatui::Frame, area: Rect, round_index: 
 
 /// Renders the two bars sliding in from the left/right edges toward the
 /// center, plus a result flash (HIT/label + ms) once tapped.
-fn draw_bars(frame: &mut ratatui::Frame, area: Rect, elapsed: Duration, tapped_deviation_ms: Option<f64>) {
+fn draw_bars(
+    frame: &mut ratatui::Frame,
+    area: Rect,
+    elapsed: Duration,
+    tapped_deviation_ms: Option<f64>,
+) {
     let block = Block::default().borders(Borders::ALL).title(" Converge ");
     let inner = block.inner(area);
     frame.render_widget(block, area);
@@ -252,7 +261,12 @@ fn draw_bars(frame: &mut ratatui::Frame, area: Rect, elapsed: Duration, tapped_d
 
     if let Some(deviation_ms) = tapped_deviation_ms {
         let label = format!("{:+.0} ms", deviation_ms);
-        let label_area = Rect::new(inner.x, mid_row.saturating_sub(2).max(inner.y), inner.width, 1);
+        let label_area = Rect::new(
+            inner.x,
+            mid_row.saturating_sub(2).max(inner.y),
+            inner.width,
+            1,
+        );
         frame.render_widget(
             Paragraph::new(label)
                 .alignment(Alignment::Center)
@@ -274,6 +288,12 @@ fn show_start_screen(
         match rx.try_recv() {
             Ok(KeyboardSignal::Tap(_)) => return Ok(true),
             Ok(KeyboardSignal::Quit) => return Ok(false),
+            Ok(
+                KeyboardSignal::Up
+                | KeyboardSignal::Down
+                | KeyboardSignal::Select
+                | KeyboardSignal::BackToMenu,
+            ) => {}
             Err(std::sync::mpsc::TryRecvError::Empty) => {}
             Err(std::sync::mpsc::TryRecvError::Disconnected) => return Ok(false),
         }

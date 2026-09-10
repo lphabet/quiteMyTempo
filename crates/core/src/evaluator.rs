@@ -41,11 +41,8 @@ impl SessionSummary {
             return Self::default();
         }
         let mean = deviations.iter().sum::<f64>() / scored_count as f64;
-        let variance = deviations
-            .iter()
-            .map(|d| (d - mean).powi(2))
-            .sum::<f64>()
-            / scored_count as f64;
+        let variance =
+            deviations.iter().map(|d| (d - mean).powi(2)).sum::<f64>() / scored_count as f64;
         Self {
             scored_count,
             mean_deviation_ms: mean,
@@ -182,8 +179,7 @@ mod tests {
 
     #[test]
     fn early_tap_is_negative_deviation() {
-        let mut evaluator =
-            TimingEvaluator::new(vec![ExpectedTap::scored(ms(500))], ms(250));
+        let mut evaluator = TimingEvaluator::new(vec![ExpectedTap::scored(ms(500))], ms(250));
         let result = evaluator.record(TimingEvent { at: ms(480) }).unwrap();
         assert!((result.deviation_ms + 20.0).abs() < 1e-6);
         assert!(result.deviation_ms < 0.0, "early tap should be negative");
@@ -248,7 +244,6 @@ mod tests {
         // (only) candidate, but still outside the 100ms tolerance.
         assert!(evaluator.record(TimingEvent { at: ms(0) }).is_none());
     }
-
 
     #[test]
     fn informational_taps_are_excluded_from_summary() {

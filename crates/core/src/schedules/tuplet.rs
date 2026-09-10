@@ -61,12 +61,15 @@ impl Schedule for TupletSchedule {
         for bar_index in 0..self.bars {
             let bar_start = bar * bar_index;
             for i in 0..self.subdivisions {
-                let offset =
-                    Duration::from_secs_f64(bar.as_secs_f64() * (i as f64) / self.subdivisions as f64);
+                let offset = Duration::from_secs_f64(
+                    bar.as_secs_f64() * (i as f64) / self.subdivisions as f64,
+                );
                 taps.push(ExpectedTap::scored(bar_start + offset));
             }
         }
-        taps.into_iter().filter(|t| t.at <= session_duration).collect()
+        taps.into_iter()
+            .filter(|t| t.at <= session_duration)
+            .collect()
     }
 }
 
@@ -84,7 +87,10 @@ mod tests {
         let schedule = TupletSchedule::new(60.0, 3, 2);
         let clicks = schedule.clicks(ms(8000));
         let times: Vec<u64> = clicks.iter().map(|c| c.at.as_millis() as u64).collect();
-        assert_eq!(times, vec![0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000]);
+        assert_eq!(
+            times,
+            vec![0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000]
+        );
     }
 
     #[test]

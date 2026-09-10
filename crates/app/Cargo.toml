@@ -7,5 +7,7 @@ edition.workspace = true
 anyhow = "1.0.104"
 cpal = "0.18.2"
 crossterm = "0.29.0"
+dirs = "5.0"
 quietmytempo-core = { path = "../core" }
 ratatui = { version = "0.30.2", default-features = false, features = ["crossterm"] }
+rand = "0.8"
