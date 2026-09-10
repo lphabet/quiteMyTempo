@@ -65,7 +65,7 @@ pub enum CalibrationOutcome {
 type Term = Terminal<CrosstermBackend<Stdout>>;
 
 /// Runs the full visual calibration UI loop (bars converging, tap capture,
-/// per-round result flash) followed by a "press SPACE/Enter to start"
+/// per-round result flash) followed by a "press SPACE/Enter to continue"
 /// confirmation screen showing the measured offset.
 ///
 /// Must be called with the terminal already in raw mode + alternate screen
@@ -277,9 +277,9 @@ fn draw_bars(
     }
 }
 
-/// Shows the measured offset and waits for SPACE/Enter to confirm start
-/// (or Quit). Returns `Ok(true)` to proceed, `Ok(false)` if the player
-/// quit instead.
+/// Shows the measured offset and waits for SPACE/Enter to confirm and
+/// return to the main menu (or Quit). Returns `Ok(true)` to proceed,
+/// `Ok(false)` if the player quit instead.
 fn show_start_screen(
     term: &mut Term,
     rx: &std::sync::mpsc::Receiver<KeyboardSignal>,
@@ -311,7 +311,7 @@ fn show_start_screen(
                 Line::from(format!("Measured visual/input offset: {offset_ms} ms")),
                 Line::from(""),
                 Line::from(Span::styled(
-                    "Press SPACE to start",
+                    "Press SPACE to continue",
                     Style::default().fg(Color::Green),
                 )),
                 Line::from("(q / Esc to quit)"),
