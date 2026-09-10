@@ -10,7 +10,7 @@ Programmstart, danach direkt in den (einzigen verdrahteten) Tap-Along-Modus.
 1. Ein **Startscreen mit Menüauswahl**, über den:
    - die verschiedenen Übungsmodi aufgerufen werden können (Tap Along, Quiet Four,
      Tuplets, Rhythm Reader — siehe `keyboard-modes.md`)
-   - die Kalibrierung (erneut) aufgerufen werden kann
+   - die Kalibrierung (erstmals oder erneut) aufgerufen werden kann
    - das Programm beendet werden kann
 2. Modi sind **erst auswählbar, nachdem einmal kalibriert wurde** — vorher sind sie
    sichtbar, aber gesperrt (mit Hinweistext), um dem Nutzer zu zeigen, was ihn erwartet,
@@ -46,7 +46,8 @@ Programmstart, danach direkt in den (einzigen verdrahteten) Tap-Along-Modus.
 2. Quiet Four
 3. Tuplets
 4. Rhythm Reader
-5. Kalibrierung (erneut) durchführen
+5. Kalibrierung durchführen (bzw. "Kalibrierung erneut durchführen", falls
+   bereits kalibriert wurde)
 6. Beenden
 
 ### Zustände pro Eintrag
@@ -72,7 +73,7 @@ Programmstart, danach direkt in den (einzigen verdrahteten) Tap-Along-Modus.
   - **F** — Quiet **F**our (nicht `Q`, das ist bereits "Beenden")
   - **U** — T**u**plets (nicht `T`, das ist bereits "Tap Along")
   - **R** — Rhythm Reader
-  - **C** — Kalibrierung (erneut) durchführen
+  - **C** — Kalibrierung durchführen bzw. erneut durchführen
   - **Q** — Beenden
   Der Buchstabe wird im Menü direkt neben jedem Eintrag angezeigt (z.B. `[T] Tap
   Along`), Groß-/Kleinschreibung ist beim Drücken egal.

@@ -42,14 +42,25 @@ impl MenuEntry {
         MenuEntry::Quit,
     ];
 
-    fn label(&self) -> &'static str {
+    /// The entry's display label. For [`MenuEntry::Calibrate`], the
+    /// wording depends on whether a calibration has already been done:
+    /// "Kalibrierung durchfuehren" the first time, "Kalibrierung erneut
+    /// durchfuehren" afterwards (no parentheses either way — see
+    /// `specs/app-flow.md`).
+    fn label(&self, is_calibrated: bool) -> String {
         match self {
-            MenuEntry::TapAlong => "Tap Along",
-            MenuEntry::QuietFour => "Quiet Four",
-            MenuEntry::Tuplets => "Tuplets",
-            MenuEntry::RhythmReader => "Rhythm Reader",
-            MenuEntry::Calibrate => "Kalibrierung (erneut) durchfuehren",
-            MenuEntry::Quit => "Beenden",
+            MenuEntry::TapAlong => "Tap Along".to_string(),
+            MenuEntry::QuietFour => "Quiet Four".to_string(),
+            MenuEntry::Tuplets => "Tuplets".to_string(),
+            MenuEntry::RhythmReader => "Rhythm Reader".to_string(),
+            MenuEntry::Calibrate => {
+                if is_calibrated {
+                    "Kalibrierung erneut durchfuehren".to_string()
+                } else {
+                    "Kalibrierung durchfuehren".to_string()
+                }
+            }
+            MenuEntry::Quit => "Beenden".to_string(),
         }
     }
 
@@ -219,7 +230,7 @@ fn draw(frame: &mut ratatui::Frame, focused: usize, is_calibrated: bool) {
             format!(
                 "{marker}[{}] {}{suffix}",
                 entry.shortcut().to_ascii_uppercase(),
-                entry.label()
+                entry.label(is_calibrated)
             ),
             style,
         )));
