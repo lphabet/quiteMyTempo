@@ -34,6 +34,10 @@ use ui::UiState;
 /// product decision, not a core-architecture one.
 const SESSION_DURATION: Duration = Duration::from_secs(10 * 60);
 const BPM: f64 = 90.0;
+/// Beats per bar for the position indicator (see `ui::draw_position`).
+/// Standard 4/4 time — not yet configurable, matches the "4/4 as default"
+/// assumption throughout `specs/keyboard-modes.md`.
+const BEATS_PER_BAR: usize = 4;
 /// UI redraw cadence. Independent of audio/input timing precision (those
 /// are timestamped against `SessionClock`, not tied to the render rate).
 const FRAME_INTERVAL: Duration = Duration::from_millis(33); // ~30 FPS
@@ -64,10 +68,19 @@ fn main() -> anyhow::Result<()> {
         }
     };
 
-    let result = run_session(&mut term, &rx, global_clock, offset_ms);
+    // Calibration only runs once; from here the player can restart the
+    // Tap Along exercise itself (SPACE on the result screen) as many
+    // times as they like without having to recalibrate each time.
+    let state = loop {
+        let state = run_session(&mut term, &rx, global_clock, offset_ms)?;
+
+        match show_result_screen(&mut term, &rx, &state)? {
+            ResultScreenOutcome::Restart => continue,
+            ResultScreenOutcome::Quit => break state,
+        }
+    };
 
     restore_terminal(_raw_mode)?;
-    let state = result?;
 
     println!("\n--- Session Summary ---");
     println!("Latency offset applied: {offset_ms} ms");
@@ -85,6 +98,38 @@ fn restore_terminal(raw_mode: terminal::RawModeGuard) -> anyhow::Result<()> {
     let _ = execute!(stdout, LeaveAlternateScreen, DisableMouseCapture);
     drop(raw_mode);
     Ok(())
+}
+
+/// What the player chose to do from the end-of-session result screen.
+enum ResultScreenOutcome {
+    /// SPACE — run the exercise again without repeating calibration.
+    Restart,
+    /// q / Esc / Ctrl+C, or the input thread died — leave the app.
+    Quit,
+}
+
+/// Shows the end-of-session result screen (see `ui::draw_result`) and
+/// waits for the player to press SPACE (restart) or q/Esc (quit) before
+/// returning, so the player gets a clear takeaway instead of the terminal
+/// just snapping back to the shell the instant the session ends.
+fn show_result_screen(
+    term: &mut Terminal<CrosstermBackend<std::io::Stdout>>,
+    rx: &std::sync::mpsc::Receiver<KeyboardSignal>,
+    state: &UiState,
+) -> anyhow::Result<ResultScreenOutcome> {
+    loop {
+        match rx.try_recv() {
+            Ok(KeyboardSignal::Tap(_)) => return Ok(ResultScreenOutcome::Restart),
+            Ok(KeyboardSignal::Quit) => return Ok(ResultScreenOutcome::Quit),
+            Err(std::sync::mpsc::TryRecvError::Empty) => {}
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                return Ok(ResultScreenOutcome::Quit)
+            }
+        }
+
+        term.draw(|frame| ui::draw_result(frame, state))?;
+        std::thread::sleep(FRAME_INTERVAL);
+    }
 }
 
 /// Runs the actual Tap Along exercise: starts the metronome on a fresh
@@ -194,10 +239,22 @@ fn run_loop(args: RunLoopArgs) -> anyhow::Result<()> {
 
         state.summary = TimingEvaluator::summarize(all_results);
         state.last_click_at = most_recent_click_instant(clicks, clock);
+        update_position(state, clock, BEATS_PER_BAR);
 
         term.draw(|frame| ui::draw(frame, state))?;
         std::thread::sleep(FRAME_INTERVAL);
     }
+}
+
+/// Computes 1-based bar/beat-in-bar numbers from elapsed session time and
+/// tempo, purely for the "where am I in the 4/4 grid" display aid (see
+/// `ui::draw_position`) — not used for any scoring logic.
+fn update_position(state: &mut UiState, clock: SessionClock, beats_per_bar: usize) {
+    let beat_duration = Duration::from_secs_f64(60.0 / state.bpm);
+    let beats_elapsed = (clock.elapsed().as_secs_f64() / beat_duration.as_secs_f64()).floor() as usize;
+    state.beats_per_bar = beats_per_bar;
+    state.current_bar = beats_elapsed / beats_per_bar + 1;
+    state.current_beat_in_bar = beats_elapsed % beats_per_bar + 1;
 }
 
 /// Finds the most recently-elapsed click and converts it to an `Instant` so
