@@ -108,6 +108,22 @@ fn run_repetitions(
                 summary.mistaps += mistaps;
                 summary.total_expected_notes += expected_count;
             }
+            // Player pressed q/Esc mid-repetition: stop repeating early but
+            // still route through the result screen (see `session.rs::run_live`
+            // for the same pattern) so `q`/Esc lands them on the menu instead
+            // of killing the whole process.
+            RepOutcome::Aborted {
+                results,
+                missed,
+                mistaps,
+                expected_count,
+            } => {
+                summary.all_results.extend(results);
+                summary.missed_notes += missed;
+                summary.mistaps += mistaps;
+                summary.total_expected_notes += expected_count;
+                return Ok(RepetitionsOutcome::Finished(summary));
+            }
             RepOutcome::Quit => return Ok(RepetitionsOutcome::Quit),
         }
 
@@ -140,6 +156,16 @@ fn draw_pattern(
 
 enum RepOutcome {
     Done {
+        results: Vec<TapResult>,
+        missed: usize,
+        mistaps: usize,
+        expected_count: usize,
+    },
+    /// Player pressed q/Esc mid-repetition. Carries whatever was scored so
+    /// far so the result screen still reflects the partial attempt, mirroring
+    /// `session.rs::run_live`'s `Quit`-during-live-play → `LiveOutcome::Finished`
+    /// behavior (see doc comment there).
+    Aborted {
         results: Vec<TapResult>,
         missed: usize,
         mistaps: usize,
@@ -211,7 +237,18 @@ fn run_one_repetition(
                         }
                     }
                 }
-                Ok(KeyboardSignal::Quit) => return Ok(RepOutcome::Quit),
+                // `q`/Esc during live play ends the current session (like
+                // `session.rs::run_live`) and drops to the result screen
+                // instead of quitting the whole app — see `RepOutcome::Aborted`.
+                Ok(KeyboardSignal::Quit) => {
+                    let missed = count_missed(&results, &expected_taps);
+                    return Ok(RepOutcome::Aborted {
+                        results,
+                        missed,
+                        mistaps,
+                        expected_count,
+                    });
+                }
                 Ok(
                     KeyboardSignal::Up
                     | KeyboardSignal::Down
@@ -234,11 +271,7 @@ fn run_one_repetition(
         std::thread::sleep(FRAME_INTERVAL);
     }
 
-    let matched_ats: std::collections::HashSet<_> = results.iter().map(|r| r.expected.at).collect();
-    let missed = expected_taps
-        .iter()
-        .filter(|t: &&ExpectedTap| !matched_ats.contains(&t.at))
-        .count();
+    let missed = count_missed(&results, &expected_taps);
 
     Ok(RepOutcome::Done {
         results,
@@ -246,6 +279,17 @@ fn run_one_repetition(
         mistaps,
         expected_count,
     })
+}
+
+/// Counts expected taps that never got matched by a recorded result —
+/// shared between the normal end-of-repetition path and the `q`/Esc abort
+/// path (`RepOutcome::Aborted`) so both compute "missed" the same way.
+fn count_missed(results: &[TapResult], expected_taps: &[ExpectedTap]) -> usize {
+    let matched_ats: std::collections::HashSet<_> = results.iter().map(|r| r.expected.at).collect();
+    expected_taps
+        .iter()
+        .filter(|t: &&ExpectedTap| !matched_ats.contains(&t.at))
+        .count()
 }
 
 enum ResultScreenOutcome {

@@ -79,6 +79,17 @@ Programmstart, danach direkt in den (einzigen verdrahteten) Tap-Along-Modus.
 - **q / Esc**: Programm beenden (direkt aus dem Menü, kein Bestätigungsdialog —
   Hobbyprojekt, geringe Kosten eines Fehlklicks).
 
+### Während einer laufenden Session (alle vier Modi)
+`q`/`Esc` während des eigentlichen Spielens (nicht erst auf dem Result-Screen)
+beendet **nur die aktuelle Session/den aktuellen Durchlauf** und führt sofort zum
+Result-Screen (mit den bis dahin erzielten Ergebnissen) — es beendet **nicht**
+den Prozess. Das gilt einheitlich für Tap Along, Quiet Four, Tuplets und Rhythm
+Reader: Ein früher Abbruch mitten in der Spiel-Phase darf niemals den ganzen
+Prozess beenden, weil sonst kein Weg zurück zum Menü existiert (bei Rhythm
+Reader war das ein Bug: `q`/Esc während eines Durchlaufs sprang direkt zu
+`SessionOutcome::Quit`, statt wie bei den anderen drei Modi erst den
+Result-Screen zu zeigen, von dem aus `q`/`Esc`/`m` ins Menü zurückführen).
+
 ### Nach einer Session (Result Screen bestehender/neuer Modi)
 Bisher (`main.rs` vor diesem Feature) führte `q`/`Esc` auf dem Result-Screen zum
 Programmende. Das wird geändert, damit das Menü tatsächlich ein Hub ist:
