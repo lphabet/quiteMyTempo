@@ -136,7 +136,8 @@ fn run_live<S: Schedule>(
                     KeyboardSignal::Up
                     | KeyboardSignal::Down
                     | KeyboardSignal::Select
-                    | KeyboardSignal::BackToMenu,
+                    | KeyboardSignal::BackToMenu
+                    | KeyboardSignal::Shortcut(_),
                 ) => {} // no menu navigation meaning during a live session
                 Err(std::sync::mpsc::TryRecvError::Empty) => break,
                 Err(std::sync::mpsc::TryRecvError::Disconnected) => return Ok(LiveOutcome::Quit),
@@ -145,7 +146,7 @@ fn run_live<S: Schedule>(
 
         state.summary = TimingEvaluator::summarize(&all_results);
         state.last_click_at = most_recent_click_instant(&clicks, clock);
-        update_position(&mut state, clock, config.beats_per_bar);
+        update_position(&mut state, clock, config.beats_per_bar, &clicks);
 
         term.draw(|frame| ui::draw(frame, &state))?;
 
@@ -175,9 +176,15 @@ fn show_result_screen(
             Ok(KeyboardSignal::Tap(_)) | Ok(KeyboardSignal::Select) => {
                 return Ok(ResultScreenOutcome::Restart)
             }
-            Ok(KeyboardSignal::BackToMenu) => return Ok(ResultScreenOutcome::BackToMenu),
-            Ok(KeyboardSignal::Quit) => return Ok(ResultScreenOutcome::Quit),
-            Ok(KeyboardSignal::Up | KeyboardSignal::Down) => {}
+            // `q`/Esc on the result screen returns to the main menu rather
+            // than quitting the whole app (see `specs/app-flow.md`) — the
+            // menu is the actual "hub", so leaving a mode via `q` should
+            // land the player there, not end the process. `m` still does
+            // the same thing; both are kept so either habit works.
+            Ok(KeyboardSignal::BackToMenu) | Ok(KeyboardSignal::Quit) => {
+                return Ok(ResultScreenOutcome::BackToMenu)
+            }
+            Ok(KeyboardSignal::Up | KeyboardSignal::Down | KeyboardSignal::Shortcut(_)) => {}
             Err(std::sync::mpsc::TryRecvError::Empty) => {}
             Err(std::sync::mpsc::TryRecvError::Disconnected) => {
                 return Ok(ResultScreenOutcome::Quit)
@@ -191,14 +198,32 @@ fn show_result_screen(
 
 /// Computes 1-based bar/beat-in-bar numbers from elapsed session time and
 /// tempo, purely for the "where am I in the 4/4 grid" display aid (see
-/// `ui::draw_position`) — not used for any scoring logic.
-fn update_position(state: &mut UiState, clock: SessionClock, beats_per_bar: usize) {
+/// `ui::draw_position`) — not used for any scoring logic. Also determines
+/// whether the *current beat* actually has an audible click behind it: in
+/// Quiet Four's silent bar (see `QuietFourSchedule`, which simply omits
+/// those beats from `clicks()`), the position indicator must go dark too
+/// — showing it running as normal during the silent bar would defeat the
+/// mode's whole point of hiding the pulse, not just the click sound.
+fn update_position(
+    state: &mut UiState,
+    clock: SessionClock,
+    beats_per_bar: usize,
+    clicks: &[ClickEvent],
+) {
     let beat_duration = Duration::from_secs_f64(60.0 / state.bpm);
     let beats_elapsed =
         (clock.elapsed().as_secs_f64() / beat_duration.as_secs_f64()).floor() as usize;
     state.beats_per_bar = beats_per_bar;
     state.current_bar = beats_elapsed / beats_per_bar + 1;
     state.current_beat_in_bar = beats_elapsed % beats_per_bar + 1;
+
+    // A beat is "silent" if no click in the schedule's audible grid lands
+    // on (approximately) its start time — a small epsilon absorbs the
+    // sub-millisecond float rounding possible from the two independent
+    // `60.0 / bpm` computations (here vs. inside the `Schedule` impl).
+    let beat_start = beat_duration.mul_f64(beats_elapsed as f64);
+    const EPSILON: Duration = Duration::from_micros(500);
+    state.beat_is_silent = !clicks.iter().any(|c| c.at.abs_diff(beat_start) <= EPSILON);
 }
 
 /// Finds the most recently-elapsed click and converts it to an `Instant`

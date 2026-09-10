@@ -62,6 +62,20 @@ Programmstart, danach direkt in den (einzigen verdrahteten) Tap-Along-Modus.
   umlaufend (am letzten Eintrag → Runter springt zurück zum ersten).
 - **Enter**: fokussierten Eintrag auswählen (bei gesperrtem Eintrag: keine Aktion,
   ggf. kurzes visuelles Feedback "gesperrt").
+- **Direkter Buchstaben-Shortcut**: jeder Eintrag hat zusätzlich einen einzelnen
+  Buchstaben, mit dem er sofort ausgewählt werden kann, ohne vorher per
+  Hoch/Runter dorthin navigieren zu müssen (Fokus springt dabei ebenfalls auf den
+  Eintrag, damit das UI konsistent bleibt). Belegung — bewusst nicht immer der
+  erste Buchstabe des Namens, da einige erste Buchstaben bereits global anders
+  belegt sind (`q` = Beenden/Quit, `j`/`k` = Navigation):
+  - **T** — Tap Along
+  - **F** — Quiet **F**our (nicht `Q`, das ist bereits "Beenden")
+  - **U** — T**u**plets (nicht `T`, das ist bereits "Tap Along")
+  - **R** — Rhythm Reader
+  - **C** — Kalibrierung (erneut) durchführen
+  - **Q** — Beenden
+  Der Buchstabe wird im Menü direkt neben jedem Eintrag angezeigt (z.B. `[T] Tap
+  Along`), Groß-/Kleinschreibung ist beim Drücken egal.
 - **q / Esc**: Programm beenden (direkt aus dem Menü, kein Bestätigungsdialog —
   Hobbyprojekt, geringe Kosten eines Fehlklicks).
 
@@ -69,8 +83,11 @@ Programmstart, danach direkt in den (einzigen verdrahteten) Tap-Along-Modus.
 Bisher (`main.rs` vor diesem Feature) führte `q`/`Esc` auf dem Result-Screen zum
 Programmende. Das wird geändert, damit das Menü tatsächlich ein Hub ist:
 - **SPACE**: Modus mit gleicher Konfiguration neu starten (bestehendes Verhalten).
-- **`m`**: zurück ins Hauptmenü (neu).
-- **q / Esc**: Programm beenden (bestehendes Verhalten bleibt zusätzlich erhalten).
+- **`m` oder `q` / `Esc`**: zurück ins Hauptmenü — beide Tasten tun auf dem
+  Result-Screen dasselbe. `q`/`Esc` beendet hier **nicht** mehr den Prozess (anders
+  als im Hauptmenü selbst): der Result-Screen ist kein Endpunkt, sondern immer ein
+  Rücksprung zum Hub. Wer das Programm wirklich beenden will, tut das über den
+  entsprechenden Menüpunkt im Hauptmenü.
 
 ## Ablaufdiagramm (vereinfacht)
 
@@ -96,7 +113,7 @@ Session-Loop des gewählten Modus (siehe keyboard-modes.md)
    │
    ▼
 Result Screen
-   │  SPACE → Session-Loop (neu)   |   m → Hauptmenü   |   q/Esc → Beenden
+   │  SPACE → Session-Loop (neu)   |   m / q / Esc → Hauptmenü
 ```
 
 ## Architektur-Implikationen
@@ -111,7 +128,10 @@ Result Screen
   Kalibrierung-dann-Tap-Along-Pipeline.
 - `keyboard.rs` muss um Navigations-Signale erweitert werden (Pfeiltasten/`j`/`k`
   hoch/runter, Enter) — bisher kannte es nur `Tap` (Space) und `Quit`
-  (Esc/q/Ctrl+C).
+  (Esc/q/Ctrl+C). Zusätzlich ein generisches `Shortcut(char)`-Signal für beliebige
+  andere Zeichentasten (klein geschrieben), das nur im Menü für die
+  Direkt-Shortcuts (siehe oben) interpretiert wird — alle anderen Screens
+  ignorieren es, genau wie sie `Up`/`Down`/`Select` bereits ignorieren.
 
 ## Offene Punkte für später
 - Kein Bestätigungsdialog beim Beenden (bewusst, siehe oben) — falls das im

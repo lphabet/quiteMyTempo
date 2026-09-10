@@ -345,7 +345,7 @@ pub fn draw_result(frame: &mut Frame, summary: &RhythmReaderSummary) {
 
     draw_result_stats(frame, chunks[1], summary);
 
-    let help = Paragraph::new("SPACE restart   |   m menu   |   q / Esc quit")
+    let help = Paragraph::new("SPACE restart   |   m / q / Esc menu")
         .alignment(Alignment::Center)
         .style(Style::default().add_modifier(Modifier::DIM));
     frame.render_widget(help, chunks[3]);

@@ -138,7 +138,8 @@ fn run_round(
                 KeyboardSignal::Up
                 | KeyboardSignal::Down
                 | KeyboardSignal::Select
-                | KeyboardSignal::BackToMenu,
+                | KeyboardSignal::BackToMenu
+                | KeyboardSignal::Shortcut(_),
             ) => {} // no menu-navigation meaning during calibration
             Err(std::sync::mpsc::TryRecvError::Empty) => {}
             Err(std::sync::mpsc::TryRecvError::Disconnected) => return Ok(RoundOutcome::Aborted),
@@ -292,7 +293,8 @@ fn show_start_screen(
                 KeyboardSignal::Up
                 | KeyboardSignal::Down
                 | KeyboardSignal::Select
-                | KeyboardSignal::BackToMenu,
+                | KeyboardSignal::BackToMenu
+                | KeyboardSignal::Shortcut(_),
             ) => {}
             Err(std::sync::mpsc::TryRecvError::Empty) => {}
             Err(std::sync::mpsc::TryRecvError::Disconnected) => return Ok(false),

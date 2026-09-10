@@ -216,7 +216,8 @@ fn run_one_repetition(
                     KeyboardSignal::Up
                     | KeyboardSignal::Down
                     | KeyboardSignal::Select
-                    | KeyboardSignal::BackToMenu,
+                    | KeyboardSignal::BackToMenu
+                    | KeyboardSignal::Shortcut(_),
                 ) => {}
                 Err(std::sync::mpsc::TryRecvError::Empty) => break,
                 Err(std::sync::mpsc::TryRecvError::Disconnected) => return Ok(RepOutcome::Quit),
@@ -263,9 +264,12 @@ fn show_result_screen(
             Ok(KeyboardSignal::Tap(_)) | Ok(KeyboardSignal::Select) => {
                 return Ok(ResultScreenOutcome::Restart)
             }
-            Ok(KeyboardSignal::BackToMenu) => return Ok(ResultScreenOutcome::BackToMenu),
-            Ok(KeyboardSignal::Quit) => return Ok(ResultScreenOutcome::Quit),
-            Ok(KeyboardSignal::Up | KeyboardSignal::Down) => {}
+            // See `session.rs::show_result_screen` — `q`/Esc returns to the
+            // main menu instead of quitting the process.
+            Ok(KeyboardSignal::BackToMenu) | Ok(KeyboardSignal::Quit) => {
+                return Ok(ResultScreenOutcome::BackToMenu)
+            }
+            Ok(KeyboardSignal::Up | KeyboardSignal::Down | KeyboardSignal::Shortcut(_)) => {}
             Err(std::sync::mpsc::TryRecvError::Empty) => {}
             Err(std::sync::mpsc::TryRecvError::Disconnected) => {
                 return Ok(ResultScreenOutcome::Quit)

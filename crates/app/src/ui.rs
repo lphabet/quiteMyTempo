@@ -64,6 +64,14 @@ pub struct UiState {
     pub current_bar: usize,
     pub current_beat_in_bar: usize,
     pub beats_per_bar: usize,
+    /// Set by the caller when the current beat falls in a silent bar (no
+    /// audible click behind it — see Quiet Four's `QuietFourSchedule`).
+    /// When true, `draw_position` hides the position indicator entirely
+    /// rather than keep showing the running beat marker — the whole point
+    /// of Quiet Four's silent bar is that the player has no external
+    /// pulse cue at all, and a still-ticking on-screen indicator would be
+    /// exactly that kind of cue.
+    pub beat_is_silent: bool,
     /// Running counts of scored taps by accuracy bucket (green/yellow/
     /// red, same thresholds as [`deviation_color`]), used to render the
     /// end-of-session result screen's distribution bar.
@@ -88,6 +96,7 @@ impl UiState {
             current_bar: 1,
             current_beat_in_bar: 1,
             beats_per_bar: 4,
+            beat_is_silent: false,
             green_count: 0,
             yellow_count: 0,
             red_count: 0,
@@ -328,12 +337,25 @@ fn draw_header(frame: &mut Frame, area: Rect, state: &UiState) {
 /// beat in the bar (4 for a standard 4/4 bar), with the current beat lit
 /// up and a bar counter alongside. Purely an orientation aid; has no
 /// effect on scoring.
+///
+/// During a silent bar (`state.beat_is_silent`, see Quiet Four), this is
+/// blanked out entirely rather than kept running — the point of the
+/// silent bar is that the player has *no* external pulse cue, and a
+/// still-updating position readout would quietly undermine that.
 fn draw_position(frame: &mut Frame, area: Rect, state: &UiState) {
     let block = panel_block("Position");
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
     if inner.width < 20 || inner.height == 0 {
+        return;
+    }
+
+    if state.beat_is_silent {
+        let hint = Paragraph::new("(quiet — trust your internal pulse)")
+            .alignment(Alignment::Center)
+            .style(Style::default().add_modifier(Modifier::DIM));
+        frame.render_widget(hint, inner);
         return;
     }
 
@@ -579,7 +601,7 @@ pub fn draw_result(frame: &mut Frame, state: &UiState) {
     draw_result_distribution(frame, chunks[2], state);
     draw_result_gauges(frame, chunks[3], state);
 
-    let help = Paragraph::new("SPACE restart   |   q / Esc quit")
+    let help = Paragraph::new("SPACE restart   |   m / q / Esc menu")
         .alignment(Alignment::Center)
         .style(Style::default().add_modifier(Modifier::DIM));
     frame.render_widget(help, chunks[5]);

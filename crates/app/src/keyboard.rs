@@ -42,6 +42,14 @@ pub enum KeyboardSignal {
     Select,
     /// `m` — return to the main menu from a result screen.
     BackToMenu,
+    /// Any other single character key press, lower-cased. Used by
+    /// `menu.rs` for direct one-letter shortcuts per entry (see
+    /// `specs/app-flow.md`) — kept generic here rather than a
+    /// menu-specific enum since the keyboard thread has no notion of
+    /// "menu" vs. "session", only "which key". Screens that don't care
+    /// (sessions, calibration) simply ignore it, same as `Up`/`Down`/
+    /// `Select` already are outside the menu.
+    Shortcut(char),
     Quit,
 }
 
@@ -74,6 +82,15 @@ pub fn spawn(clock: SessionClock) -> Receiver<KeyboardSignal> {
                         {
                             KeyboardSignal::Quit
                         }
+                        // Any other plain character key: forwarded as a
+                        // generic shortcut signal, lower-cased so callers
+                        // don't need to care about shift state. Currently
+                        // only `menu.rs` interprets these (one-letter
+                        // direct shortcut per entry, see
+                        // `specs/app-flow.md`); every other screen simply
+                        // ignores it, same as `Up`/`Down`/`Select` already
+                        // are outside the menu.
+                        KeyCode::Char(c) => KeyboardSignal::Shortcut(c.to_ascii_lowercase()),
                         _ => continue,
                     };
                     if tx.send(signal).is_err() {

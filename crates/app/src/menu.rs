@@ -53,6 +53,34 @@ impl MenuEntry {
         }
     }
 
+    /// The single-letter direct shortcut for this entry (see
+    /// `specs/app-flow.md`) — lets the player jump straight to an entry
+    /// without navigating with Up/Down first. Deliberately **not** just
+    /// the entry's first letter in every case: `q` is already wired
+    /// globally to `KeyboardSignal::Quit` (see `keyboard.rs`), so
+    /// "Quiet Four" can't use `q` for itself (would never even reach here
+    /// as a `Shortcut` — the keyboard thread intercepts it first) and
+    /// instead uses `f` ("Four"). `j`/`k`/`m`/space are similarly reserved
+    /// (navigation/back-to-menu/tap), so entries whose natural first
+    /// letter collides pick the next-most-obvious mnemonic letter
+    /// instead.
+    fn shortcut(&self) -> char {
+        match self {
+            MenuEntry::TapAlong => 't',
+            MenuEntry::QuietFour => 'f',
+            MenuEntry::Tuplets => 'u',
+            MenuEntry::RhythmReader => 'r',
+            MenuEntry::Calibrate => 'c',
+            MenuEntry::Quit => 'q',
+        }
+    }
+
+    /// Looks up the entry (if any) whose [`Self::shortcut`] matches `c`
+    /// (already lower-cased by the caller, see `keyboard.rs`).
+    fn by_shortcut(c: char) -> Option<MenuEntry> {
+        Self::ALL.into_iter().find(|entry| entry.shortcut() == c)
+    }
+
     /// Entries that require a valid calibration before they can be
     /// selected (see `specs/app-flow.md`: modes are visible-but-locked
     /// until calibrated at least once).
@@ -94,14 +122,26 @@ pub fn run(
             }
             Ok(KeyboardSignal::Select) | Ok(KeyboardSignal::Tap(_)) => {
                 let entry = MenuEntry::ALL[focused];
-                if entry == MenuEntry::Quit {
-                    return Ok(MenuOutcome::Quit);
-                }
-                if !entry.requires_calibration() || is_calibrated {
-                    return Ok(MenuOutcome::Selected(entry));
+                if let Some(outcome) = try_select(entry, is_calibrated) {
+                    return Ok(outcome);
                 }
                 // Locked entry: ignore selection, stay in the menu (see
                 // module docs — no popup, just no-op).
+            }
+            // Direct one-letter shortcut (see `MenuEntry::shortcut`):
+            // jumps straight to that entry's selection/lock behavior,
+            // without requiring the player to navigate focus there first.
+            // Unknown letters (no entry uses them) are simply ignored.
+            Ok(KeyboardSignal::Shortcut(c)) => {
+                if let Some(entry) = MenuEntry::by_shortcut(c) {
+                    focused = MenuEntry::ALL
+                        .iter()
+                        .position(|e| *e == entry)
+                        .unwrap_or(focused);
+                    if let Some(outcome) = try_select(entry, is_calibrated) {
+                        return Ok(outcome);
+                    }
+                }
             }
             Ok(KeyboardSignal::Quit) => return Ok(MenuOutcome::Quit),
             Ok(KeyboardSignal::BackToMenu) => {}
@@ -112,6 +152,19 @@ pub fn run(
         term.draw(|frame| draw(frame, focused, is_calibrated))?;
         std::thread::sleep(FRAME_INTERVAL);
     }
+}
+
+/// Shared selection logic for both Enter-on-focused-entry and direct
+/// one-letter shortcuts: quit always succeeds, locked mode entries are a
+/// no-op (`None`), everything else resolves to [`MenuOutcome::Selected`].
+fn try_select(entry: MenuEntry, is_calibrated: bool) -> Option<MenuOutcome> {
+    if entry == MenuEntry::Quit {
+        return Some(MenuOutcome::Quit);
+    }
+    if !entry.requires_calibration() || is_calibrated {
+        return Some(MenuOutcome::Selected(entry));
+    }
+    None
 }
 
 fn draw(frame: &mut ratatui::Frame, focused: usize, is_calibrated: bool) {
@@ -163,7 +216,11 @@ fn draw(frame: &mut ratatui::Frame, focused: usize, is_calibrated: bool) {
         };
 
         lines.push(Line::from(Span::styled(
-            format!("{marker}{}{suffix}", entry.label()),
+            format!(
+                "{marker}[{}] {}{suffix}",
+                entry.shortcut().to_ascii_uppercase(),
+                entry.label()
+            ),
             style,
         )));
     }
@@ -175,7 +232,7 @@ fn draw(frame: &mut ratatui::Frame, focused: usize, is_calibrated: bool) {
     let hint = if focused_entry.requires_calibration() && !is_calibrated {
         "Bitte zuerst kalibrieren, um diesen Modus freizuschalten."
     } else {
-        "Hoch/Runter (oder j/k) navigieren  |  Enter waehlen  |  q/Esc beenden"
+        "Hoch/Runter (oder j/k) navigieren  |  Enter waehlen  |  Buchstabe = direkt waehlen  |  q/Esc beenden"
     };
     let help = Paragraph::new(hint)
         .alignment(Alignment::Center)

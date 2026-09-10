@@ -57,6 +57,10 @@ Klicks. Prüft, ob der Spieler den Puls "im Kopf" halten kann.
   im Hintergrund weiter (als Referenz-Zeitachse), Spieler tappt weiter, ohne
   akustische Führung
 - Danach: nächster hörbarer Klick setzt wieder ein (Takt 4 / "die nächste 1")
+- Während des stillen Takts wird zusätzlich zum Klick auch die "Position im
+  Takt"-Anzeige (Beat-Zähler, siehe `implementation-notes.md` → TUI) ausgeblendet
+  — sonst hätte der Spieler weiterhin eine visuelle Pulsreferenz und der Sinn des
+  Modus (rein internes Timing-Gefühl ohne jede externe Krücke) wäre unterlaufen.
 
 ### Evaluierung
 - Fokus der Bewertung: **wie präzise wurde die 1 des nächsten hörbaren Takts
