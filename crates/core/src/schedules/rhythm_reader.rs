@@ -102,7 +102,7 @@ impl RhythmReaderSchedule {
         assert!(!pattern.is_empty(), "pattern must not be empty");
         let beats = pattern_duration_beats(&pattern);
         assert!(
-            (beats / BEATS_PER_BAR).round() * BEATS_PER_BAR - beats < 1e-6,
+            ((beats / BEATS_PER_BAR).round() * BEATS_PER_BAR - beats).abs() < 1e-6,
             "pattern must sum to a whole number of 4/4 bars, got {beats} beats"
         );
         Self { bpm, pattern }
@@ -263,7 +263,7 @@ mod tests {
         for pattern in curated_patterns() {
             let beats = pattern_duration_beats(&pattern);
             assert!(
-                (beats / BEATS_PER_BAR).round() * BEATS_PER_BAR - beats < 1e-6,
+                ((beats / BEATS_PER_BAR).round() * BEATS_PER_BAR - beats).abs() < 1e-6,
                 "pattern beats {beats} is not a whole number of bars"
             );
         }
@@ -325,6 +325,16 @@ mod tests {
     #[should_panic(expected = "whole number of 4/4 bars")]
     fn pattern_not_summing_to_whole_bars_panics() {
         let pattern = vec![PatternNote::note(NoteValue::Quarter); 3]; // 3 beats, not a multiple of 4
+        RhythmReaderSchedule::new(60.0, pattern);
+    }
+
+    #[test]
+    #[should_panic(expected = "whole number of 4/4 bars")]
+    fn pattern_rounding_down_to_fewer_bars_panics() {
+        // 5 beats = 1.25 bars; rounds down to 1 bar, so the naive (non-abs)
+        // check `rounded_bars * BEATS_PER_BAR - beats < 1e-6` would wrongly
+        // pass since the difference is negative.
+        let pattern = vec![PatternNote::note(NoteValue::Quarter); 5];
         RhythmReaderSchedule::new(60.0, pattern);
     }
 }
