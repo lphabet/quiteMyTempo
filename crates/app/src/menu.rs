@@ -44,9 +44,8 @@ impl MenuEntry {
 
     /// The entry's display label. For [`MenuEntry::Calibrate`], the
     /// wording depends on whether a calibration has already been done:
-    /// "Kalibrierung durchfuehren" the first time, "Kalibrierung erneut
-    /// durchfuehren" afterwards (no parentheses either way — see
-    /// `specs/app-flow.md`).
+    /// "Run calibration" the first time, "Redo calibration" afterwards
+    /// (no parentheses either way — see `specs/app-flow.md`).
     fn label(&self, is_calibrated: bool) -> String {
         match self {
             MenuEntry::TapAlong => "Tap Along".to_string(),
@@ -55,12 +54,12 @@ impl MenuEntry {
             MenuEntry::RhythmReader => "Rhythm Reader".to_string(),
             MenuEntry::Calibrate => {
                 if is_calibrated {
-                    "Kalibrierung erneut durchfuehren".to_string()
+                    "Redo calibration".to_string()
                 } else {
-                    "Kalibrierung durchfuehren".to_string()
+                    "Run calibration".to_string()
                 }
             }
-            MenuEntry::Quit => "Beenden".to_string(),
+            MenuEntry::Quit => "Quit".to_string(),
         }
     }
 
@@ -218,7 +217,7 @@ fn draw(frame: &mut ratatui::Frame, focused: usize, is_calibrated: bool) {
         };
 
         let marker = if is_focused { "> " } else { "  " };
-        let suffix = if locked { "  (gesperrt)" } else { "" };
+        let suffix = if locked { "  (locked)" } else { "" };
 
         let style = if is_focused {
             Style::default().fg(color).add_modifier(Modifier::BOLD)
@@ -241,9 +240,9 @@ fn draw(frame: &mut ratatui::Frame, focused: usize, is_calibrated: bool) {
 
     let focused_entry = MenuEntry::ALL[focused];
     let hint = if focused_entry.requires_calibration() && !is_calibrated {
-        "Bitte zuerst kalibrieren, um diesen Modus freizuschalten."
+        "Please calibrate first to unlock this mode."
     } else {
-        "Hoch/Runter (oder j/k) navigieren  |  Enter waehlen  |  Buchstabe = direkt waehlen  |  q/Esc beenden"
+        "Up/Down (or j/k) navigate  |  Enter select  |  Letter = jump directly  |  q/Esc quit"
     };
     let help = Paragraph::new(hint)
         .alignment(Alignment::Center)

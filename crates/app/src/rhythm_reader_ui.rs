@@ -409,11 +409,11 @@ fn draw_result_stats(frame: &mut Frame, area: Rect, summary: &RhythmReaderSummar
 
     let lines = vec![
         Line::from(vec![
-            Span::styled("Trefferquote  ", label_style),
+            Span::styled("Hit rate  ", label_style),
             Span::styled(format!("{:.0}%", summary.hit_rate() * 100.0), value_style),
         ]),
         Line::from(vec![
-            Span::styled("Getroffene Noten  ", label_style),
+            Span::styled("Notes hit  ", label_style),
             Span::styled(
                 format!(
                     "{}/{}",
@@ -424,15 +424,15 @@ fn draw_result_stats(frame: &mut Frame, area: Rect, summary: &RhythmReaderSummar
             ),
         ]),
         Line::from(vec![
-            Span::styled("Verpasste Noten  ", label_style),
+            Span::styled("Notes missed  ", label_style),
             Span::styled(format!("{}", summary.missed_notes), value_style),
         ]),
         Line::from(vec![
-            Span::styled("Fehltreffer  ", label_style),
+            Span::styled("Mistaps  ", label_style),
             Span::styled(format!("{}", summary.mistaps), value_style),
         ]),
         Line::from(vec![
-            Span::styled("Mittlere Abweichung  ", label_style),
+            Span::styled("Mean deviation  ", label_style),
             Span::styled(format!("{mean:+.1} ms"), value_style),
         ]),
     ];
