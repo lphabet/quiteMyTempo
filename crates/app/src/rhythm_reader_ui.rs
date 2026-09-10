@@ -220,14 +220,18 @@ fn draw_status(frame: &mut Frame, area: Rect, state: &RhythmReaderState) {
     frame.render_widget(paragraph, area);
 }
 
-/// Renders the pattern as a proportionally-widthed row of symbols, with a
-/// vertical playhead marker sweeping through it in real time.
+/// Renders the pattern as a proportionally-widthed row of hand-built note
+/// glyphs (see [`note_glyph_rows`]) — each spanning several character rows
+/// (stem/flags/notehead) rather than a single ready-made Unicode note
+/// symbol, so notes read clearly at a larger, more legible size in the
+/// terminal — with a vertical playhead marker sweeping through it in real
+/// time.
 fn draw_pattern(frame: &mut Frame, area: Rect, state: &RhythmReaderState) {
     let block = panel_block("Pattern");
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
-    if inner.width < 10 || inner.height < 3 {
+    if inner.width < 10 || inner.height < GLYPH_ROWS as u16 + 1 {
         return;
     }
 
@@ -238,35 +242,41 @@ fn draw_pattern(frame: &mut Frame, area: Rect, state: &RhythmReaderState) {
 
     let width = inner.width as f64;
 
-    // Row of note symbols, each occupying a width proportional to its
-    // duration.
-    let symbol_row_y = inner.y + inner.height / 2;
-    let mut spans: Vec<Span> = Vec::new();
+    // Vertically center the glyph block within the available inner area.
+    let glyph_top_y = inner.y + (inner.height.saturating_sub(GLYPH_ROWS as u16)) / 2;
+
+    // One row of spans per glyph row (stem/flags/notehead), built by
+    // iterating notes outer, rows inner, so each note's glyph stays
+    // together column-wise across all rows.
+    let mut rows: Vec<Vec<Span>> = vec![Vec::new(); GLYPH_ROWS];
 
     for (idx, note) in state.pattern.iter().enumerate() {
         let note_width = ((note.value.duration_beats() / total_beats) * width).round() as usize;
-        let note_width = note_width.max(2);
-        let symbol = note_symbol(note);
+        let note_width = note_width.max(GLYPH_WIDTH + 1);
+        let glyph = note_glyph_rows(note);
         let color = match state.note_states[idx] {
             NoteState::Pending if note.is_rest => REST_COLOR,
             NoteState::Pending => NEUTRAL_COLOR,
             NoteState::Hit => HIT_COLOR,
             NoteState::Missed => MISS_COLOR,
         };
+        let style = Style::default().fg(color).add_modifier(Modifier::BOLD);
+        let label_width = note_width.saturating_sub(1);
 
-        let label = format!("{symbol:^width$}", width = note_width.saturating_sub(1));
-        spans.push(Span::styled(
-            label,
-            Style::default().fg(color).add_modifier(Modifier::BOLD),
-        ));
-        spans.push(Span::raw("|"));
+        for (row_idx, glyph_row) in glyph.iter().enumerate() {
+            let label = format!("{glyph_row:^label_width$}");
+            rows[row_idx].push(Span::styled(label, style));
+            rows[row_idx].push(Span::raw("│"));
+        }
     }
 
-    let pattern_line = Line::from(spans);
-    frame.render_widget(
-        Paragraph::new(pattern_line),
-        Rect::new(inner.x, symbol_row_y, inner.width, 1),
-    );
+    for (row_idx, spans) in rows.into_iter().enumerate() {
+        let line = Line::from(spans);
+        frame.render_widget(
+            Paragraph::new(line),
+            Rect::new(inner.x, glyph_top_y + row_idx as u16, inner.width, 1),
+        );
+    }
 
     // Playhead: only draw while inside the pattern itself (not during
     // count-in), as a vertical bar at the corresponding column.
@@ -283,16 +293,45 @@ fn draw_pattern(frame: &mut Frame, area: Rect, state: &RhythmReaderState) {
     }
 }
 
-fn note_symbol(note: &PatternNote) -> &'static str {
+/// Number of character rows each note glyph occupies (see
+/// [`note_glyph_rows`]) — flag row, second flag row, stem row, notehead
+/// row, top to bottom.
+const GLYPH_ROWS: usize = 4;
+/// Character width of each note glyph, before centering it in its
+/// duration-proportional slot.
+const GLYPH_WIDTH: usize = 2;
+
+/// Builds a note/rest as hand-drawn ASCII art spanning [`GLYPH_ROWS`] rows
+/// of [`GLYPH_WIDTH`] characters each (top to bottom: upper flag, lower
+/// flag, stem, notehead/dot) instead of reaching for a single premade
+/// Unicode musical symbol (♩/♪/𝅘𝅥𝅯/𝄽/…) — at normal terminal font sizes those
+/// render tiny and are hard to tell apart at a glance, whereas a note built
+/// from several rows of stem/flag/notehead characters reads clearly larger
+/// and closer to how the shape is actually drawn on paper.
+///
+/// Layout (all notes/rests share the same 4-row canvas so columns line up
+/// across the whole pattern row):
+/// - Row 0/1: flags — sixteenth notes get one flag on each of these rows
+///   (`│╮`), eighth notes get a single flag on row 1 only, quarters/dotted
+///   quarters have no flag (bare stem)
+/// - Row 2: stem (`│`) for any note; blank for rests
+/// - Row 3: notehead (`●`) for notes, plus a trailing `.` for dotted
+///   values; rests use a distinct mark on this row instead (no notehead)
+///
+/// Rests reuse the same canvas but replace the stem/notehead with a small
+/// zigzag/dot glyph (loosely echoing the real rest glyphs' shapes) so they
+/// are unmistakably not notes at a glance.
+fn note_glyph_rows(note: &PatternNote) -> [&'static str; GLYPH_ROWS] {
+    use NoteValue::*;
     match (note.value, note.is_rest) {
-        (NoteValue::Quarter, false) => "♩",
-        (NoteValue::Eighth, false) => "♪",
-        (NoteValue::Sixteenth, false) => "♬",
-        (NoteValue::DottedQuarter, false) => "♩.",
-        (NoteValue::Quarter, true) => "𝄽",
-        (NoteValue::Eighth, true) => "𝄾",
-        (NoteValue::Sixteenth, true) => "𝄿",
-        (NoteValue::DottedQuarter, true) => "𝄽.",
+        (Quarter, false) => ["  ", "│ ", "│ ", "● "],
+        (Eighth, false) => ["  ", "│╮", "│ ", "● "],
+        (Sixteenth, false) => ["│╮", "│╮", "│ ", "● "],
+        (DottedQuarter, false) => ["  ", "│ ", "│ ", "●."],
+        (Quarter, true) => [" ╱", "╱ ", " ╲", "╲ "],
+        (Eighth, true) => ["  ", " ●", "╱ ", "  "],
+        (Sixteenth, true) => [" ●", " ●", "╱ ", "  "],
+        (DottedQuarter, true) => [" ╱", "╱ ", " ╲", "╲."],
     }
 }
 

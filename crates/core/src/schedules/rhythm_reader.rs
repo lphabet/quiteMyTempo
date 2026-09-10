@@ -8,6 +8,10 @@
 //! pattern itself starts; the pattern itself plays with no grounding click
 //! (the player is meant to read + internalize the rhythm, not tap along to
 //! a click during the pattern itself).
+//!
+//! Patterns are generated procedurally per repetition (see
+//! [`generate_pattern`]) rather than drawn from a fixed library — see
+//! `specs/keyboard-modes.md` Mode 4 "Pattern-Erzeugung".
 
 use std::time::Duration;
 
@@ -94,7 +98,7 @@ pub struct RhythmReaderSchedule {
 
 impl RhythmReaderSchedule {
     /// `pattern` must sum to a whole number of 4/4 bars (>= 1 bar); this is
-    /// a content/curation invariant (see `curated_patterns`), not
+    /// a content invariant guaranteed by [`generate_pattern`], not
     /// something derived at runtime, so it is checked with an assertion
     /// rather than a recoverable error.
     pub fn new(bpm: f64, pattern: Pattern) -> Self {
@@ -166,80 +170,111 @@ impl Schedule for RhythmReaderSchedule {
     }
 }
 
-/// A small, fixed library of curated one-bar (4/4) patterns spanning a
-/// range of difficulty, per `specs/keyboard-modes.md` Mode 4 v1 scope
-/// (algorithmic generation is explicitly deferred). The app layer draws
-/// randomly from this per repetition.
-pub fn curated_patterns() -> Vec<Pattern> {
-    use NoteValue::*;
+/// Number of sixteenth-note units in one 4/4 bar (4 beats * 4 sixteenths
+/// per beat) — the integer grid [`generate_pattern`] fills, so bars always
+/// come out to an exact whole number of beats regardless of which note
+/// values get picked (all of `NoteValue`'s durations are whole multiples
+/// of a sixteenth).
+const UNITS_PER_BAR: u32 = 16;
 
-    vec![
-        // 1. Four quarters — simplest possible pattern.
-        vec![
-            PatternNote::note(Quarter),
-            PatternNote::note(Quarter),
-            PatternNote::note(Quarter),
-            PatternNote::note(Quarter),
-        ],
-        // 2. All eighths.
-        vec![PatternNote::note(Eighth); 8],
-        // 3. Quarter, two eighths, quarter, two eighths.
-        vec![
-            PatternNote::note(Quarter),
-            PatternNote::note(Eighth),
-            PatternNote::note(Eighth),
-            PatternNote::note(Quarter),
-            PatternNote::note(Eighth),
-            PatternNote::note(Eighth),
-        ],
-        // 4. Quarter rest on beat 1, syncopated eighths.
-        vec![
-            PatternNote::rest(Quarter),
-            PatternNote::note(Eighth),
-            PatternNote::note(Eighth),
-            PatternNote::note(Quarter),
-            PatternNote::note(Quarter),
-        ],
-        // 5. Dotted quarter + eighth, twice (classic syncopation cell).
-        vec![
-            PatternNote::note(DottedQuarter),
-            PatternNote::note(Eighth),
-            PatternNote::note(DottedQuarter),
-            PatternNote::note(Eighth),
-        ],
-        // 6. Sixteenth-note run on beat 1, quarters after.
-        vec![
-            PatternNote::note(Sixteenth),
-            PatternNote::note(Sixteenth),
-            PatternNote::note(Sixteenth),
-            PatternNote::note(Sixteenth),
-            PatternNote::note(Quarter),
-            PatternNote::note(Quarter),
-            PatternNote::note(Quarter),
-        ],
-        // 7. Eighth rests interleaved with eighth notes ("off-beat" feel).
-        vec![
-            PatternNote::rest(Eighth),
-            PatternNote::note(Eighth),
-            PatternNote::rest(Eighth),
-            PatternNote::note(Eighth),
-            PatternNote::rest(Eighth),
-            PatternNote::note(Eighth),
-            PatternNote::rest(Eighth),
-            PatternNote::note(Eighth),
-        ],
-        // 8. Mixed: quarter, sixteenth run, two eighths, quarter.
-        vec![
-            PatternNote::note(Quarter),
-            PatternNote::note(Sixteenth),
-            PatternNote::note(Sixteenth),
-            PatternNote::note(Sixteenth),
-            PatternNote::note(Sixteenth),
-            PatternNote::note(Eighth),
-            PatternNote::note(Eighth),
-            PatternNote::note(Quarter),
-        ],
-    ]
+/// Config for procedural pattern generation (see
+/// `specs/keyboard-modes.md` Mode 4 "Pattern-Erzeugung"). Patterns are no
+/// longer drawn from a fixed curated library — they are generated fresh
+/// per repetition from these parameters, so difficulty can be tuned later
+/// by widening/narrowing `note_pool` or adjusting `rest_probability`
+/// without touching the generation algorithm itself.
+#[derive(Debug, Clone)]
+pub struct GeneratorConfig {
+    /// Number of 4/4 bars the generated pattern should span.
+    pub bars: u32,
+    /// Note values eligible to be picked for any given slot. Must contain
+    /// at least one value; [`NoteValue::Sixteenth`] is used as a fallback
+    /// whenever nothing else in the pool still fits the bar's remaining
+    /// space, so a pool without it still terminates correctly.
+    pub note_pool: Vec<NoteValue>,
+    /// Independent probability, in `[0.0, 1.0]`, that any given slot is
+    /// generated as a rest rather than a note.
+    pub rest_probability: f64,
+}
+
+impl Default for GeneratorConfig {
+    fn default() -> Self {
+        Self {
+            bars: 1,
+            note_pool: vec![
+                NoteValue::Quarter,
+                NoteValue::Eighth,
+                NoteValue::Sixteenth,
+                NoteValue::DottedQuarter,
+            ],
+            rest_probability: 0.15,
+        }
+    }
+}
+
+/// Duration of `value` expressed in sixteenth-note units (an exact
+/// integer, unlike [`NoteValue::duration_beats`]'s `f64`), used by
+/// [`generate_pattern`] so bar-filling arithmetic never drifts.
+fn units(value: NoteValue) -> u32 {
+    (value.duration_beats() * 4.0).round() as u32
+}
+
+/// Procedurally generates a random pattern spanning `config.bars` bars of
+/// 4/4, per `specs/keyboard-modes.md` Mode 4 "Pattern-Erzeugung". Each bar
+/// is filled slot by slot: a note value is picked at random from whichever
+/// entries in `config.note_pool` still fit the bar's remaining space, then
+/// independently turned into a rest with probability
+/// `config.rest_probability`. Filling in sixteenth-unit space guarantees
+/// each bar sums to exactly `UNITS_PER_BAR` (i.e. a whole bar), so the
+/// result always satisfies [`RhythmReaderSchedule::new`]'s bar-alignment
+/// assertion.
+///
+/// Takes a source of randomness as a generic closure returning a value in
+/// `[0.0, 1.0)` (like `rand::Rng::gen::<f64>()`) rather than depending on
+/// the `rand` crate directly — `quietmytempo-core` deliberately has zero
+/// dependencies (see `crates/core/Cargo.toml`); RNG stays an app-layer
+/// concern, with the caller (e.g. `rhythm_reader_session.rs`) supplying
+/// `rand::thread_rng()`.
+pub fn generate_pattern(config: &GeneratorConfig, mut random: impl FnMut() -> f64) -> Pattern {
+    assert!(config.bars >= 1, "bars must be >= 1");
+    assert!(!config.note_pool.is_empty(), "note_pool must not be empty");
+    assert!(
+        (0.0..=1.0).contains(&config.rest_probability),
+        "rest_probability must be within [0.0, 1.0]"
+    );
+
+    let mut pattern = Pattern::new();
+
+    for _ in 0..config.bars {
+        let mut remaining = UNITS_PER_BAR;
+        while remaining > 0 {
+            let candidates: Vec<NoteValue> = config
+                .note_pool
+                .iter()
+                .copied()
+                .filter(|v| units(*v) <= remaining)
+                .collect();
+            // A sixteenth (1 unit) always fits any remaining space >= 1,
+            // so this fallback guarantees the loop always makes progress
+            // even if the configured pool has no value narrow enough for
+            // whatever's left in the bar.
+            let value = if candidates.is_empty() {
+                NoteValue::Sixteenth
+            } else {
+                let idx = ((random() * candidates.len() as f64) as usize).min(candidates.len() - 1);
+                candidates[idx]
+            };
+            let is_rest = random() < config.rest_probability;
+            pattern.push(if is_rest {
+                PatternNote::rest(value)
+            } else {
+                PatternNote::note(value)
+            });
+            remaining -= units(value);
+        }
+    }
+
+    pattern
 }
 
 #[cfg(test)]
@@ -258,15 +293,64 @@ mod tests {
         assert_eq!(NoteValue::DottedQuarter.duration_beats(), 1.5);
     }
 
+    /// Deterministic pseudo-random sequence (xorshift32) so generator
+    /// tests are reproducible without depending on the `rand` crate
+    /// (core has zero dependencies — see `crates/core/Cargo.toml`).
+    fn deterministic_random(seed: u32) -> impl FnMut() -> f64 {
+        let mut state = seed.max(1);
+        move || {
+            state ^= state << 13;
+            state ^= state >> 17;
+            state ^= state << 5;
+            f64::from(state) / f64::from(u32::MAX)
+        }
+    }
+
     #[test]
-    fn all_curated_patterns_sum_to_a_whole_number_of_bars() {
-        for pattern in curated_patterns() {
+    fn generated_patterns_sum_to_a_whole_number_of_bars() {
+        for seed in 1..50u32 {
+            let config = GeneratorConfig::default();
+            let pattern = generate_pattern(&config, deterministic_random(seed));
             let beats = pattern_duration_beats(&pattern);
             assert!(
                 ((beats / BEATS_PER_BAR).round() * BEATS_PER_BAR - beats).abs() < 1e-6,
                 "pattern beats {beats} is not a whole number of bars"
             );
         }
+    }
+
+    #[test]
+    fn generate_pattern_respects_bars_config() {
+        let config = GeneratorConfig {
+            bars: 2,
+            ..GeneratorConfig::default()
+        };
+        let pattern = generate_pattern(&config, deterministic_random(7));
+        let beats = pattern_duration_beats(&pattern);
+        assert!((beats - 2.0 * BEATS_PER_BAR).abs() < 1e-6);
+    }
+
+    #[test]
+    fn generate_pattern_only_uses_values_from_the_pool() {
+        let config = GeneratorConfig {
+            bars: 3,
+            note_pool: vec![NoteValue::Quarter, NoteValue::Eighth],
+            rest_probability: 0.3,
+        };
+        let pattern = generate_pattern(&config, deterministic_random(42));
+        assert!(pattern
+            .iter()
+            .all(|n| matches!(n.value, NoteValue::Quarter | NoteValue::Eighth)));
+    }
+
+    #[test]
+    fn generate_pattern_zero_rest_probability_yields_no_rests() {
+        let config = GeneratorConfig {
+            rest_probability: 0.0,
+            ..GeneratorConfig::default()
+        };
+        let pattern = generate_pattern(&config, deterministic_random(99));
+        assert!(pattern.iter().all(|n| !n.is_rest));
     }
 
     #[test]

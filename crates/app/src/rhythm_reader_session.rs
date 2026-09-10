@@ -8,10 +8,10 @@
 use std::time::Duration;
 
 use quietmytempo_core::{
-    curated_patterns, ExpectedTap, Pattern, RhythmReaderSchedule, Schedule, TapResult,
-    TimingEvaluator, TimingEvent,
+    generate_pattern, ExpectedTap, GeneratorConfig, Pattern, RhythmReaderSchedule, Schedule,
+    TapResult, TimingEvaluator, TimingEvent,
 };
-use rand::seq::SliceRandom;
+use rand::Rng;
 use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
 
@@ -88,12 +88,12 @@ fn run_repetitions(
     config: &RhythmReaderConfig,
 ) -> anyhow::Result<RepetitionsOutcome> {
     let mut rng = rand::thread_rng();
-    let library = curated_patterns();
+    let generator_config = GeneratorConfig::default();
     let mut summary = RhythmReaderSummary::default();
     let mut previous_pattern: Option<Pattern> = None;
 
     for rep in 0..config.repetitions {
-        let pattern = draw_pattern(&library, previous_pattern.as_ref(), &mut rng);
+        let pattern = draw_pattern(&generator_config, previous_pattern.as_ref(), &mut rng);
         previous_pattern = Some(pattern.clone());
 
         match run_one_repetition(term, rx, global_clock, offset_ms, config, pattern, rep)? {
@@ -135,23 +135,34 @@ fn run_repetitions(
     Ok(RepetitionsOutcome::Finished(summary))
 }
 
-/// Picks a random pattern from `library`, avoiding an immediate repeat of
-/// `previous` when the library has more than one option (see
-/// `specs/keyboard-modes.md` Mode 4 "Pattern-Erzeugung").
+/// Maximum number of retries when trying to avoid an immediate pattern
+/// repeat. A degenerate `GeneratorConfig` (e.g. a `note_pool` with a single
+/// value and `rest_probability: 0.0`) can deterministically produce the same
+/// pattern on every call, in which case retrying forever would hang; this
+/// cap ensures `draw_pattern` always terminates.
+const MAX_REPEAT_AVOIDANCE_ATTEMPTS: usize = 20;
+
+/// Generates a random pattern, avoiding an immediate repeat of `previous`
+/// (see `specs/keyboard-modes.md` Mode 4 "Pattern-Erzeugung"). Patterns are
+/// generated fresh each call rather than drawn from a fixed library, so an
+/// immediate repeat is only possible by coincidence; retrying on a match
+/// reduces (but, for a degenerate config that always produces the same
+/// pattern, cannot fully eliminate) that chance. After
+/// `MAX_REPEAT_AVOIDANCE_ATTEMPTS` retries the last candidate is accepted
+/// even if it repeats `previous`, so this function always terminates.
 fn draw_pattern(
-    library: &[Pattern],
+    config: &GeneratorConfig,
     previous: Option<&Pattern>,
-    rng: &mut impl rand::Rng,
+    rng: &mut impl Rng,
 ) -> Pattern {
-    if library.len() <= 1 {
-        return library[0].clone();
-    }
-    loop {
-        let candidate = library.choose(rng).expect("library is non-empty").clone();
+    let mut candidate = generate_pattern(config, || rng.gen::<f64>());
+    for _ in 0..MAX_REPEAT_AVOIDANCE_ATTEMPTS {
         if Some(&candidate) != previous {
             return candidate;
         }
+        candidate = generate_pattern(config, || rng.gen::<f64>());
     }
+    candidate
 }
 
 enum RepOutcome {

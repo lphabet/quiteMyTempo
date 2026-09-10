@@ -22,7 +22,8 @@ pub use evaluator::{SessionSummary, TapResult, TimingEvaluator, TimingEvent};
 pub use schedule::{ClickEvent, ExpectedTap, Schedule};
 pub use schedules::quiet_four::QuietFourSchedule;
 pub use schedules::rhythm_reader::{
-    curated_patterns, pattern_duration_beats, NoteValue, Pattern, PatternNote, RhythmReaderSchedule,
+    generate_pattern, pattern_duration_beats, GeneratorConfig, NoteValue, Pattern, PatternNote,
+    RhythmReaderSchedule,
 };
 pub use schedules::tap_along::TapAlongSchedule;
 pub use schedules::tuplet::TupletSchedule;
