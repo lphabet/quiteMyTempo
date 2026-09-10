@@ -10,5 +10,5 @@ target/
 .github/prompts/*.prompt.md
 .github/skills/*.md
 /.mcp.json
-.opencode/
+.opencode/node_modules/
 /opencode.json
