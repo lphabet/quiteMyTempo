@@ -130,4 +130,4 @@ beliebigen Phase (Kalibrierungsrunde, Hauptsession) um.
 - Kein Retry/Redo für einzelne Kalibrierungsrunden (bei komplett verpasstem Tap greift
   ein Fallback-Strafwert, siehe `calibration::run_round`)
 - Onset-Detection-Spike (`AudioSource`) weiterhin nicht begonnen — größtes
-  verbleibendes technisches Risiko laut `architecture.md`
+  verbleibendes technisches Risiko laut `risks.md`

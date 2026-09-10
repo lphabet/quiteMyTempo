@@ -143,4 +143,4 @@ Klick existiert (relevant besonders für Quiet Four und Tuplets). Das bedeutet:
 
 ## Offene Punkte für später
 - UI/UX-Feinschliff der grafischen Live-Darstellung (siehe Tap Along)
-- Schwierigkeitsgrade/Skill-Level-Anbindung (später, siehe `architecture.md`)
+- Schwierigkeitsgrade/Skill-Level-Anbindung (später, siehe `vision.md`/`roadmap.md`)
