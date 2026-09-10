@@ -11,10 +11,13 @@
    (siehe [`specs/app-flow.md`](./app-flow.md))
 8. ~~Rhythm Reader Modus (Noten anzeigen, per Leertaste nachspielen)~~ ✅ erledigt
    (siehe [`specs/keyboard-modes.md`](./keyboard-modes.md) Modus 4)
-9. Onset-Detection-Spike für `AudioSource` (weiterhin offen, größtes verbleibendes Risiko,
-   siehe [`specs/risks.md`](./risks.md))
+9. ~~Rhythm Reader: algorithmische Pattern-Generierung (statt fester Bibliothek)~~
+   ✅ erledigt
+10. Onset-Detection-Spike für `AudioSource` (weiterhin offen, größtes verbleibendes Risiko,
+    siehe [`specs/risks.md`](./risks.md))
 
 ## Später (nicht im kritischen Pfad)
 - Skill-Level-Abfrage / Schwierigkeitsgrade (siehe [`specs/vision.md`](./vision.md))
 - AudioSource, MidiSource (siehe [`specs/architecture.md`](./architecture.md))
-- Rhythm Reader: algorithmische Pattern-Generierung mit Schwierigkeitsgraden
+- Rhythm Reader: einstellbare Schwierigkeitsgrade (Notenwert-Pool, Pausen-Anteil) über
+  die feste `GeneratorConfig::default()` hinaus als Nutzer-Einstellung exponieren

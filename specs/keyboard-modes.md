@@ -141,8 +141,8 @@ Notation-Verständnis und Timing.
      korrekt gespielte bleiben dauerhaft grün sichtbar, bis das Pattern komplett
      durchlaufen ist
 4. Nach Abschluss eines Patterndurchlaufs: kurze Pause, danach automatisch der
-   **nächste Durchlauf** (gleiches oder neu generiertes Pattern, je Konfiguration —
-   siehe unten), bis die konfigurierte Anzahl an Durchläufen erreicht ist.
+   **nächste Durchlauf** (frisch generiertes Pattern — siehe unten für Details zur
+   Wiederholungsvermeidung), bis die konfigurierte Anzahl an Durchläufen erreicht ist.
 5. **Result Screen** nach dem letzten Durchlauf (siehe Darstellung unten).
 
 ### Notenwerte (v1)
@@ -156,14 +156,24 @@ Notation-Verständnis und Timing.
   Dauern sich exakt zu ganzen Takten (Vielfachen von 4 Vierteln) aufsummieren.
 
 ### Pattern-Erzeugung
-- **v1**: Eine kleine, feste Bibliothek kuratierter 1-Takt-Patterns (z.B. 8–12
-  Patterns unterschiedlicher Schwierigkeit: von "4 Viertel" bis Mischungen aus
-  Achteln/Sechzehnteln/Pausen), zufällig gezogen für jeden Durchlauf einer Session
-  (ohne unmittelbare Wiederholung des direkten Vorgängers, damit es nicht "das
-  gleiche Pattern zweimal in Folge" gibt).
-- **Später** (nicht v1): algorithmische Zufallsgenerierung von Patterns mit
-  einstellbarem Schwierigkeitsgrad (Notenwert-Pool, max. Pausen-Anteil) — siehe
-  `specs/roadmap.md`.
+- Patterns werden **algorithmisch pro Durchlauf** generiert (nicht mehr aus einer
+  festen Bibliothek gezogen): Ein 1-Takt-Pattern wird takt- bzw.
+  Sechzehntel-Raster-weise gefüllt, wobei pro Slot zufällig ein Notenwert aus einem
+  konfigurierten Pool (Viertel/Achtel/Sechzehntel/punktierte Viertel) gewählt und
+  unabhängig davon mit einer konfigurierten Wahrscheinlichkeit zu einer Pause wird.
+  Dadurch summiert sich jedes generierte Pattern exakt zu einem oder mehreren ganzen
+  4/4-Takten.
+- Nach jedem Durchlauf wird erneut generiert und dabei eine begrenzte Anzahl Mal neu
+  gewürfelt, falls das Ergebnis mit dem direkten Vorgänger identisch ist, damit es i.d.R.
+  nicht "das gleiche Pattern zweimal in Folge" gibt. Die Wiederholungsvermeidung ist
+  dabei bewusst nicht absolut garantiert, sondern nach endlich vielen Versuchen
+  abgebrochen (letztes Ergebnis wird akzeptiert) — sonst könnte eine entartete
+  Konfiguration (z.B. ein Notenwert-Pool mit nur einem Wert und 0% Pausen-
+  Wahrscheinlichkeit), die deterministisch immer dasselbe Pattern erzeugt, zu einer
+  Endlosschleife führen.
+- Notenwert-Pool und Pausen-Wahrscheinlichkeit sind als Konfiguration modelliert, sodass
+  Schwierigkeitsgrade (siehe `specs/roadmap.md`) später ohne Änderung am
+  Generierungsalgorithmus selbst eingeführt werden können.
 
 ### Darstellung (TUI)
 - Da klassische Notenlinien im Terminal keinen sinnvollen Mehrwert gegenüber einer
@@ -172,6 +182,11 @@ Notation-Verständnis und Timing.
   - Jedes Symbol repräsentiert eine Note/Pause, proportional zur Dauer breiter
     dargestellt (z.B. eine Sechzehntel schmaler als eine Viertel), analog zum
     horizontalen Zeitstrahl-Konzept aus Tap Along
+  - Statt einzelner fertiger Unicode-Notensymbole (♩/♪/𝅘𝅥𝅯/𝄽/…), die in normaler
+    Terminal-Schriftgröße klein und schwer unterscheidbar sind, wird jede Note/Pause
+    aus mehreren Zeichen-Zeilen (Fähnchen/Notenhals/Notenkopf bzw. eine eigene
+    Pausen-Zeichenkombination) zusammengesetzt und dadurch deutlich größer und
+    lesbarer dargestellt
   - Ein vertikaler "Playhead"-Marker läuft während der Spiel-Phase in Echtzeit durch
     diese Reihe (gleiche Zeitachse wie die erwarteten Tap-Zeitpunkte), damit der
     Spieler auch ohne Notenlesen-Erfahrung rein visuell die Position im Takt sehen
@@ -256,5 +271,6 @@ bedeutet:
 ## Offene Punkte für später
 - UI/UX-Feinschliff der grafischen Live-Darstellung (siehe Tap Along)
 - Schwierigkeitsgrade/Skill-Level-Anbindung (später, siehe `vision.md`/`roadmap.md`)
-- Rhythm Reader: algorithmische Pattern-Generierung mit Schwierigkeitsgraden (bisher
-  feste kuratierte Pattern-Bibliothek, siehe Modus 4 oben)
+- Rhythm Reader: einstellbare Schwierigkeitsgrade (Notenwert-Pool, Pausen-Anteil) als
+  Nutzer-Einstellung exponieren (Generierung selbst ist bereits algorithmisch, siehe
+  Modus 4 oben)
